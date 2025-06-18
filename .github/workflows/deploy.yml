@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - master  # or 'main' if your branch is named main
+      - master
 
 jobs:
   deploy:
@@ -11,26 +11,18 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v2
 
     - name: Copy files to EC2 using SCP
-      uses: appleboy/scp-action@master
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ubuntu
-        key: ${{ secrets.EC2_KEY }}
-        source: "."
-        target: "~/visitor-logger"
+      run: |
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/visitor-key.pem -r ./ ubuntu@${{ secrets.EC2_PUBLIC_IP }}:/home/ubuntu/visitor-logger
 
     - name: SSH into EC2 and restart Docker container
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ubuntu
-        key: ${{ secrets.EC2_KEY }}
-        script: |
-          cd visitor-logger
-          docker stop visitor-app || true
-          docker rm visitor-app || true
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/visitor-key.pem ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
+          cd /home/ubuntu/visitor-logger
+          docker stop visitor-container || true
+          docker rm visitor-container || true
           docker build -t visitor-app .
-          docker run -d -p 80:5000 --name visitor-app visitor-app
+          docker run -d --name visitor-container -p 80:5000 visitor-app
+        EOF
